@@ -13,17 +13,19 @@ tasks.register('applyMinecraft26_2SourceCompatibility') {
         fileTree(javaRoot).matching { include '**/*.java' }.files.each { sourceFile ->
             String original = sourceFile.getText('UTF-8')
             String text = original
+            String newline = text.contains('\r\n') ? '\r\n' : '\n'
 
             // Mojang 26.2 moved the public section size constant.
             text = text.replace('LevelChunkSection.SECTION_WIDTH', 'SectionPos.SECTION_SIZE')
             if (!text.contains('LevelChunkSection.')) {
-                text = text.replace('import net.minecraft.world.level.chunk.LevelChunkSection;\n', '')
+                text = text.replace("import net.minecraft.world.level.chunk.LevelChunkSection;${newline}", '')
             }
 
             // Minecraft screen changes are now routed through the GUI object.
             text = text.replace('source.getClient().setScreen(', 'source.getClient().gui.setScreen(')
             text = text.replace('Minecraft.getInstance().setScreen(', 'Minecraft.getInstance().gui.setScreen(')
             text = text.replace('minecraft.setScreen(', 'minecraft.gui.setScreen(')
+            text = text.replace('minecraft.screen', 'minecraft.gui.screen()')
 
             // Chat access moved underneath the HUD in 26.2.
             text = text.replace('.gui.getChat()', '.gui.hud.getChat()')
@@ -33,8 +35,8 @@ tasks.register('applyMinecraft26_2SourceCompatibility') {
                 text.contains('SectionPos.SECTION_SIZE') &&
                 !text.contains('import net.minecraft.core.SectionPos;')) {
                 text = text.replace(
-                    'import net.minecraft.core.BlockPos;\n',
-                    'import net.minecraft.core.BlockPos;\nimport net.minecraft.core.SectionPos;\n'
+                    "import net.minecraft.core.BlockPos;${newline}",
+                    "import net.minecraft.core.BlockPos;${newline}import net.minecraft.core.SectionPos;${newline}"
                 )
             }
 
@@ -84,9 +86,9 @@ tasks.register('applyMinecraft26_2SourceCompatibility') {
 
     private static void drawLine'''
 
-                String oldRenderMethod = '(?s)    private static void renderLines\\(LevelRenderContext worldRenderContext\\) \\{.*?\\n    \\}\\n\\n    private static void drawLine'
+                String oldRenderMethod = '(?s)    private static void renderLines\\(LevelRenderContext worldRenderContext\\) \\{.*?\\r?\\n    \\}\\r?\\n\\r?\\n    private static void drawLine'
                 text = text.replaceFirst(oldRenderMethod, Matcher.quoteReplacement(renderMethod))
-                text = text.replace('import net.minecraft.client.renderer.MultiBufferSource;\n', '')
+                text = text.replace("import net.minecraft.client.renderer.MultiBufferSource;${newline}", '')
 
                 if (text.contains('worldRenderContext.bufferSource()')) {
                     throw new GradleException('Could not migrate CevAPI RenderManager to the Minecraft 26.2 render API')
@@ -105,6 +107,7 @@ tasks.register('applyMinecraft26_2SourceCompatibility') {
             'source.getClient().setScreen(',
             'Minecraft.getInstance().setScreen(',
             'minecraft.setScreen(',
+            'minecraft.screen',
             '.gui.getChat()',
             'worldRenderContext.bufferSource()'
         ]
