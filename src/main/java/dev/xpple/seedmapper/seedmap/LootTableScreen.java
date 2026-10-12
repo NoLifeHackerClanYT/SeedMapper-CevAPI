@@ -346,7 +346,7 @@ public final class LootTableScreen extends Screen {
         if (identifier == null || identifier.isBlank()) {
             return;
         }
-        Map<String, Waypoint> existing = api.getWorldWaypoints(identifier);
+        Map<String, Waypoint> existing = WaypointMaps.orEmpty(api.getWorldWaypoints(identifier));
         BlockPos pos = getActionPos(entry);
         String baseName = sanitizeWaypointName("Loot " + pos.getX() + "," + pos.getZ());
         String name = uniqueWaypointName(baseName, existing);
@@ -388,7 +388,7 @@ public final class LootTableScreen extends Screen {
         String key = waypointKey(entry);
         String name = activeWaypoints.get(key);
         if (name == null) {
-            Map<String, Waypoint> existing = api.getWorldWaypoints(identifier);
+            Map<String, Waypoint> existing = WaypointMaps.orEmpty(api.getWorldWaypoints(identifier));
             String baseName = sanitizeWaypointName("Loot " + entry.pos().getX() + "," + entry.pos().getZ());
             if (existing.containsKey(baseName)) {
                 name = baseName;
@@ -501,7 +501,7 @@ public final class LootTableScreen extends Screen {
         if (identifier == null || identifier.isBlank()) {
             return false;
         }
-        Map<String, Waypoint> existing = api.getWorldWaypoints(identifier);
+        Map<String, Waypoint> existing = WaypointMaps.orEmpty(api.getWorldWaypoints(identifier));
         String baseName = sanitizeWaypointName("Loot " + entry.pos().getX() + "," + entry.pos().getZ());
         if (existing.containsKey(baseName)) {
             activeWaypoints.put(key, baseName);
