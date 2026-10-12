@@ -1,0 +1,101 @@
+import java.util.regex.Matcher
+
+// Source migration shim for the Minecraft 26.2 API changes.
+// The task is intentionally idempotent: once a source location is migrated,
+// subsequent builds leave it untouched.
+tasks.register('applyMinecraft26_2SourceCompatibility') {
+    dependsOn('createJavaBindings')
+
+    doLast {
+        def javaRoot = file('src/main/java')
+        def changedFiles = []
+
+        fileTree(javaRoot).matching { include '**/*.java' }.files.each { sourceFile ->
+            String original = sourceFile.getText('UTF-8')
+            String text = original
+
+            // Mojang 26.2 moved the public section size constant.
+            text = text.replace('LevelChunkSection.SECTION_WIDTH', 'SectionPos.SECTION_SIZE')
+
+            // Minecraft screen changes are now routed through the GUI object.
+            text = text.replace('source.getClient().setScreen(', 'source.getClient().gui.setScreen(')
+            text = text.replace('Minecraft.getInstance().setScreen(', 'Minecraft.getInstance().gui.setScreen(')
+            text = text.replace('minecraft.setScreen(', 'minecraft.gui.setScreen(')
+
+            // Chat access moved underneath the HUD in 26.2.
+            text = text.replace('.gui.getChat()', '.gui.hud.getChat()')
+
+            // HighlightCommand did not previously need SectionPos itself.
+            if (sourceFile.name == 'HighlightCommand.java' &&
+                text.contains('SectionPos.SECTION_SIZE') &&
+                !text.contains('import net.minecraft.core.SectionPos;')) {
+                text = text.replace(
+                    'import net.minecraft.core.BlockPos;\n',
+                    'import net.minecraft.core.BlockPos;\nimport net.minecraft.core.SectionPos;\n'
+                )
+            }
+
+            // CevAPI has a much more capable renderer than upstream (outline + fill +
+            // batching). 26.2 removed LevelRenderContext#bufferSource(), so submit
+            // the same geometry through the new render node collector instead.
+            if (sourceFile.path.replace('\\', '/').endsWith('/dev/xpple/seedmapper/render/RenderManager.java') &&
+                text.contains('worldRenderContext.bufferSource()')) {
+
+                String renderMethod = '''    private static void renderLines(LevelRenderContext context) {
+        List<Line> linesToRender = RenderManager.extractedLines;
+        if (linesToRender != null && !linesToRender.isEmpty()) {
+            int linesPerBatch = Math.max(1, MAX_LINE_VERTICES_PER_BATCH / 2);
+            for (int from = 0; from < linesToRender.size(); from += linesPerBatch) {
+                final int start = from;
+                final int end = Math.min(linesToRender.size(), from + linesPerBatch);
+                context.submitNodeCollector().submitCustomGeometry(
+                    context.poseStack(),
+                    NoDepthLayer.LINES_NO_DEPTH_LAYER,
+                    (pose, buffer) -> {
+                        for (int i = start; i < end; i++) {
+                            drawLine(buffer, pose, linesToRender.get(i));
+                        }
+                    }
+                );
+            }
+        }
+
+        List<FillFace> fillsToRender = RenderManager.extractedFills;
+        if (fillsToRender != null && !fillsToRender.isEmpty()) {
+            int facesPerBatch = Math.max(1, MAX_FILL_VERTICES_PER_BATCH / 8);
+            for (int from = 0; from < fillsToRender.size(); from += facesPerBatch) {
+                final int start = from;
+                final int end = Math.min(fillsToRender.size(), from + facesPerBatch);
+                context.submitNodeCollector().submitCustomGeometry(
+                    context.poseStack(),
+                    NoDepthLayer.QUADS_NO_DEPTH_LAYER,
+                    (pose, buffer) -> {
+                        for (int i = start; i < end; i++) {
+                            drawQuadFill(buffer, pose, fillsToRender.get(i));
+                        }
+                    }
+                );
+            }
+        }
+    }
+
+    private static void drawLine'''
+
+                String oldRenderMethod = '(?s)    private static void renderLines\\(LevelRenderContext worldRenderContext\\) \\{.*?\\n    \\}\\n\\n    private static void drawLine'
+                text = text.replaceFirst(oldRenderMethod, Matcher.quoteReplacement(renderMethod))
+                text = text.replace('import net.minecraft.client.renderer.MultiBufferSource;\n', '')
+            }
+
+            if (text != original) {
+                sourceFile.setText(text, 'UTF-8')
+                changedFiles.add(sourceFile.path)
+            }
+        }
+
+        if (!changedFiles.isEmpty()) {
+            logger.lifecycle("Applied Minecraft 26.2 source compatibility to ${changedFiles.size()} file(s).")
+        }
+    }
+}
+
+compileJava.dependsOn('applyMinecraft26_2SourceCompatibility')
