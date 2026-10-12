@@ -147,7 +147,7 @@ public final class LootTableScreen extends Screen {
             rebuildRowButtons();
         }).bounds(mid + 80, controlsY, 70, 20).build());
 
-        this.addRenderableWidget(Button.builder(Component.literal("Back"), b -> this.minecraft.setScreen(prev))
+        this.addRenderableWidget(Button.builder(Component.literal("Back"), b -> this.minecraft.gui.setScreen(prev))
             .bounds(mid - 150, this.height - 28, 300, 20).build());
 
         scrollUpButton = addRenderableWidget(Button.builder(Component.literal("▲▲"), b -> {

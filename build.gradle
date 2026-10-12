@@ -167,5 +167,3 @@ publishMods {
         }
     }
 }
-
-apply from: 'gradle/minecraft26_2_compat.gradle'
