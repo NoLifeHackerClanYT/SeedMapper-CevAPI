@@ -143,7 +143,21 @@ public class CustomClientCommandSource extends ClientSuggestionProvider implemen
                 case SEED_CONFIG -> Configs.Seed;
                 case SAVED_SEEDS_CONFIG -> {
                     String key = SimpleWaypointsAPI.getInstance().getWorldIdentifier(this.client);
-                    yield Optionull.map(key, k -> Configs.SavedSeeds.get(SerializationHelperInvoker.invokeUpgradeWorldIdentifier(k)));
+                    SeedIdentifier saved = null;
+                    if (key != null) {
+                        String upgradedKey = SerializationHelperInvoker.invokeUpgradeWorldIdentifier(key);
+                        saved = Configs.SavedSeeds.get(upgradedKey);
+                        if (saved == null && !upgradedKey.equals(key)) {
+                            saved = Configs.SavedSeeds.get(key);
+                        }
+                    }
+                    if (saved == null) {
+                        String serverKey = Configs.getCurrentServerKey();
+                        if (serverKey != null) {
+                            saved = Configs.SavedSeeds.get(serverKey);
+                        }
+                    }
+                    yield saved;
                 }
                 case ONLINE_DATABASE -> {
                     // match SeedCrackerX's key format
