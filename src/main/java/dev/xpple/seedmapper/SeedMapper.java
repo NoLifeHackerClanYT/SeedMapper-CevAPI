@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.logging.LogUtils;
 import dev.xpple.betterconfig.api.ModConfigBuilder;
+import dev.xpple.seedmapper.command.arguments.BlockArgument;
 import dev.xpple.seedmapper.command.arguments.ColorWrapperArgument;
 import dev.xpple.seedmapper.command.arguments.DurationArgument;
 import dev.xpple.seedmapper.command.arguments.MapFeatureArgument;
@@ -26,6 +27,7 @@ import dev.xpple.seedmapper.config.ColorWrapper;
 import dev.xpple.seedmapper.config.ColorWrapperAdapter;
 import dev.xpple.seedmapper.config.Configs;
 import dev.xpple.seedmapper.config.DurationAdapter;
+import dev.xpple.seedmapper.config.LegacyConfigMigration;
 import dev.xpple.seedmapper.config.MapFeatureAdapter;
 import dev.xpple.seedmapper.config.SeedIdentifierAdapter;
 import dev.xpple.seedmapper.config.SeedResolutionAdapter;
@@ -54,6 +56,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 
 public class SeedMapper implements ClientModInitializer {
 
@@ -85,6 +89,7 @@ public class SeedMapper implements ClientModInitializer {
     public void onInitializeClient() {
         CubiomesNative.ensureLoaded();
         migrateLegacyConfigIfNeeded();
+        migrateLegacyBlockColorsIfNeeded();
 
         new ModConfigBuilder<>(CONFIG_ID, Configs.class)
             .registerType(SeedIdentifier.class, new SeedIdentifierAdapter(), SeedIdentifierArgument::seedIdentifier)
@@ -138,6 +143,30 @@ public class SeedMapper implements ClientModInitializer {
             LOGGER.info("Copied legacy SeedMapper config from '{}' to '{}'", legacyConfigFile, forkConfigFile);
         } catch (IOException e) {
             LOGGER.warn("Failed to copy legacy SeedMapper config from '{}' to '{}'", legacyConfigFile, forkConfigFile, e);
+        }
+    }
+
+    private static void migrateLegacyBlockColorsIfNeeded() {
+        Path configFile = modConfigPath.resolve("config.json");
+        Map<String, Integer> blockIds = new HashMap<>();
+        BlockArgument.BLOCKS.forEach((name, block) -> blockIds.put(name, block.getFirst()));
+
+        try {
+            LegacyConfigMigration.Result result = LegacyConfigMigration.migrateFile(configFile, blockIds);
+            if (!result.changed()) {
+                return;
+            }
+
+            LOGGER.info("Migrated legacy BlockColors keys in '{}' to current Cubiomes block IDs", configFile);
+            if (!result.droppedKeys().isEmpty()) {
+                LOGGER.warn(
+                    "Removed unsupported legacy BlockColors keys {}. The original config is preserved at '{}'",
+                    result.droppedKeys(),
+                    LegacyConfigMigration.backupPath(configFile)
+                );
+            }
+        } catch (IOException | RuntimeException e) {
+            throw new RuntimeException("Failed to migrate legacy SeedMapper BlockColors config at " + configFile, e);
         }
     }
 
