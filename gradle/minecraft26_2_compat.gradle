@@ -99,6 +99,30 @@ tasks.register('applyMinecraft26_2SourceCompatibility') {
             }
         }
 
+        // Fail early if any of the known 26.1-only APIs survived the migration.
+        def forbiddenUsages = [
+            'LevelChunkSection.SECTION_WIDTH',
+            'source.getClient().setScreen(',
+            'Minecraft.getInstance().setScreen(',
+            'minecraft.setScreen(',
+            '.gui.getChat()',
+            'worldRenderContext.bufferSource()'
+        ]
+        def violations = []
+        fileTree(javaRoot).matching { include '**/*.java' }.files.each { sourceFile ->
+            String text = sourceFile.getText('UTF-8')
+            forbiddenUsages.each { usage ->
+                if (text.contains(usage)) {
+                    violations.add("${sourceFile.path}: ${usage}")
+                }
+            }
+        }
+        if (!violations.isEmpty()) {
+            throw new GradleException(
+                'Minecraft 26.2 source migration left incompatible API usages:\n' + violations.join('\n')
+            )
+        }
+
         if (!changedFiles.isEmpty()) {
             logger.lifecycle("Applied Minecraft 26.2 source compatibility to ${changedFiles.size()} file(s).")
         }
