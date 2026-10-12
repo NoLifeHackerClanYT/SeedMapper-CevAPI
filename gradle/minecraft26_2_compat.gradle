@@ -16,6 +16,9 @@ tasks.register('applyMinecraft26_2SourceCompatibility') {
 
             // Mojang 26.2 moved the public section size constant.
             text = text.replace('LevelChunkSection.SECTION_WIDTH', 'SectionPos.SECTION_SIZE')
+            if (!text.contains('LevelChunkSection.')) {
+                text = text.replace('import net.minecraft.world.level.chunk.LevelChunkSection;\n', '')
+            }
 
             // Minecraft screen changes are now routed through the GUI object.
             text = text.replace('source.getClient().setScreen(', 'source.getClient().gui.setScreen(')
@@ -84,6 +87,10 @@ tasks.register('applyMinecraft26_2SourceCompatibility') {
                 String oldRenderMethod = '(?s)    private static void renderLines\\(LevelRenderContext worldRenderContext\\) \\{.*?\\n    \\}\\n\\n    private static void drawLine'
                 text = text.replaceFirst(oldRenderMethod, Matcher.quoteReplacement(renderMethod))
                 text = text.replace('import net.minecraft.client.renderer.MultiBufferSource;\n', '')
+
+                if (text.contains('worldRenderContext.bufferSource()')) {
+                    throw new GradleException('Could not migrate CevAPI RenderManager to the Minecraft 26.2 render API')
+                }
             }
 
             if (text != original) {
