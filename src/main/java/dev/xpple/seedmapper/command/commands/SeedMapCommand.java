@@ -44,7 +44,7 @@ public class SeedMapCommand {
             ? WorldPresetManager.activePreset().generatorFlags()
             : source.getGeneratorFlags();
         long seedValue = seed.seed();
-        source.getClient().schedule(() -> source.getClient().setScreen(new SeedMapScreen(seedValue, dimension, version, generatorFlags, BlockPos.containing(source.getPosition()), source.getRotation())));
+        source.getClient().schedule(() -> source.getClient().gui.setScreen(new SeedMapScreen(seedValue, dimension, version, generatorFlags, BlockPos.containing(source.getPosition()), source.getRotation())));
         return Command.SINGLE_SUCCESS;
     }
 }
