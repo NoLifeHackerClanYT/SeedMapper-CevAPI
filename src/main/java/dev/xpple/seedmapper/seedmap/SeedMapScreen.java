@@ -1877,7 +1877,7 @@ public class SeedMapScreen extends Screen {
             base = "Locate";
         }
         String name = base;
-        Map<String, Waypoint> existing = api.getWorldWaypoints(identifier);
+        Map<String, Waypoint> existing = WaypointMaps.orEmpty(api.getWorldWaypoints(identifier));
         int index = 2;
         while (existing.containsKey(name)) {
             name = base + "_" + index++;
@@ -2056,7 +2056,7 @@ public class SeedMapScreen extends Screen {
         this.wurstWaypointDisplayNames.clear();
         this.lastWurstImportError = null;
 
-        Map<String, Waypoint> existing = waypointsApi.getWorldWaypoints(identifier);
+        Map<String, Waypoint> existing = WaypointMaps.orEmpty(waypointsApi.getWorldWaypoints(identifier));
         Set<String> reservedNames = new HashSet<>(existing.keySet());
         Set<String> occupiedCoords = new HashSet<>();
         Map<String, String> coordToName = new Object2ObjectOpenHashMap<>();
@@ -3154,7 +3154,7 @@ public class SeedMapScreen extends Screen {
             String identifier = api.getWorldIdentifier(this.minecraft);
             String foundName = null;
             if (identifier != null) {
-                Map<String, Waypoint> wps = api.getWorldWaypoints(identifier);
+                Map<String, Waypoint> wps = WaypointMaps.orEmpty(api.getWorldWaypoints(identifier));
                 for (Map.Entry<String, Waypoint> entry : wps.entrySet()) {
                     Waypoint waypoint = entry.getValue();
                     if (waypoint.location().equals(widget.featureLocation) && waypoint.dimension().equals(DIM_ID_TO_MC.get(this.dimension))) {
@@ -3286,7 +3286,7 @@ public class SeedMapScreen extends Screen {
                     if (!typed.isEmpty()) {
                         name = typed.replace(':', '_').replace(' ', '_');
                     } else {
-                        Map<String, Waypoint> wps = api.getWorldWaypoints(identifier);
+                        Map<String, Waypoint> wps = WaypointMaps.orEmpty(api.getWorldWaypoints(identifier));
                         int next = 1;
                         for (String existing : wps.keySet()) {
                             if (existing.startsWith("Waypoint_")) {
@@ -6521,7 +6521,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
         if (this.toggleableFeatures.contains(MapFeature.WAYPOINT) && Configs.ToggledFeatures.contains(MapFeature.WAYPOINT)) {
             SimpleWaypointsAPI waypointsApi = SimpleWaypointsAPI.getInstance();
             String identifier = waypointsApi.getWorldIdentifier(this.minecraft);
-            Map<String, Waypoint> worldWaypoints = waypointsApi.getWorldWaypoints(identifier);
+            Map<String, Waypoint> worldWaypoints = WaypointMaps.orEmpty(waypointsApi.getWorldWaypoints(identifier));
             worldWaypoints.forEach((name, waypoint) -> {
                 if (!waypoint.dimension().equals(DIM_ID_TO_MC.get(this.dimension))) {
                     return;
