@@ -9,7 +9,8 @@
     "ClientPacketListenerMixin",
     "baritone.CustomGoalProcessMixin",
     "baritone.PathingBehaviorMixin",
-    "betterconfig.ConfigCommandClientMixin"
+    "betterconfig.ConfigCommandClientMixin",
+    "simplewaypoints.SerializationHelperInvoker"
   ],
   "injectors": {
     "defaultRequire": 1
