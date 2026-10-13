@@ -2,7 +2,7 @@
 
 Date: 2026-10-13
 Branch: `mc-26.2-port`
-Status: Written spec approved; implementation planning
+Status: Approved; Phase A-D implementation plans written; Native execution selected
 
 ## 1. Goal
 

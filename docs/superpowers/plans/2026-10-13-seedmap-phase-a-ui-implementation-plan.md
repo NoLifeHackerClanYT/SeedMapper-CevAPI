@@ -6,7 +6,7 @@
 
 **Architecture:** Phase A keeps the existing Cubiomes biome tile renderer and CevAPI feature logic, but extracts viewport math, layout geometry, UI theming, icon density policy, and tooltip formatting into focused helpers. `SeedMapScreen` becomes the composition host for a fullscreen viewport with floating controls; Phase B later plugs the Hybrid/Explored renderer into the same viewport and zoom interfaces without another UI rewrite.
 
-**Tech Stack:** Java 25, Minecraft 26.2, Fabric Loader 0.19.x, Fabric API 0.161.x-compatible runtime, Fabric Loom 1.17.x, JUnit 5, existing Cubiomes/Jextract bindings.
+**Tech Stack:** Java 25, Minecraft 26.2, Fabric Loader 0.19.3, Fabric API 0.152.1+26.2, Fabric Loom 1.17-SNAPSHOT, JUnit 5, existing Cubiomes/Jextract bindings.
 
 **Spec:** `docs/superpowers/specs/2026-10-13-seedmap-ui-hybrid-map-design.md`
 
@@ -20,7 +20,7 @@
 - Zoom is smooth and cursor-centered.
 - One additional meaningful zoom-out tier beyond the current minimum is mandatory in Phase A; the complete far-distance LOD range belongs to Phase B.
 - Structure/map icons use newly created SeedMapper assets only; no Chunkbase asset files may be copied.
-- Phase A scope ends at fullscreen/UI/interaction/options; Hybrid renderer/cache work is Phase B, Xaero integration/waypoint navigation is Phase C, and Loot/QoL expansion is Phase D.
+- Phase A scope covers fullscreen/UI/interaction/options plus the requested Xaero add/export compatibility fix. Hybrid renderer/cache work is Phase B; native waypoint HUD/beacon navigation and Xaero bridge polish are Phase C; Loot/QoL expansion is Phase D.
 - Phase A must not introduce a cache whose RAM use grows with total explored world size.
 - Build and tests run on JDK 25.
 
@@ -57,6 +57,8 @@
 - `src/main/java/dev/xpple/seedmapper/seedmap/CustomStructureToggleWidget.java` — match compact themed marker-toggle presentation.
 - `src/main/java/dev/xpple/seedmapper/config/Configs.java` — Phase A default zoom floor and UI settings that must persist.
 - `src/main/java/dev/xpple/seedmapper/seedmap/MapFeature.java` — point built-in markers at the new original SeedMapper map-icon set.
+- `src/main/java/dev/xpple/seedmapper/waypoint/XaeroWaypointBridge.java` — optional reflection-only live Xaero bridge.
+- `src/main/java/dev/xpple/seedmapper/waypoint/XaeroWaypointFileExport.java` — durable Xaero file export/backup/dedup logic.
 - `src/main/resources/assets/seedmapper/textures/map_icons/*.png` — newly created original marker icons inspired by Chunkbase readability.
 
 ### Tests to add
@@ -68,6 +70,8 @@
 - `src/test/java/dev/xpple/seedmapper/seedmap/SeedMapIconPolicyTest.java`
 - `src/test/java/dev/xpple/seedmapper/seedmap/SeedMapTooltipDataTest.java`
 - `src/test/java/dev/xpple/seedmapper/seedmap/SeedMapOptionsCategoryTest.java`
+- `src/test/java/dev/xpple/seedmapper/waypoint/XaeroWaypointBridgeTest.java`
+- `src/test/java/dev/xpple/seedmapper/waypoint/XaeroWaypointFileExportTest.java`
 
 ---
 
@@ -364,7 +368,7 @@ git commit -m "feat: add coordinate rich seed map tooltip"
   - ESP: target/profile/run/clear/range controls.
   - WAYPOINTS: Import Wurst and current waypoint-related settings/actions available in the screen.
   - MINIMAP: toggle and Minimap Settings.
-  - EXPORT: Export JSON and Export Xaero (behavior unchanged until Phase C).
+  - EXPORT: Export JSON and Export Xaero; Xaero live add/export refresh is fixed in Task 8.
   - ADVANCED: Datapack URL/import, Keybinds, remaining advanced/dev controls.
 
 - [ ] **Step 1: Write failing category tests**
@@ -396,7 +400,63 @@ git add src/main/java/dev/xpple/seedmapper/seedmap/SeedMapOptionsCategory.java s
 git commit -m "feat: group seed map options into categories"
 ```
 
-### Task 8: Full verification and MegaCraft8 runtime smoke test
+### Task 8: Fix live Xaero add and export refresh
+
+**Files:**
+- Create: `src/main/java/dev/xpple/seedmapper/waypoint/XaeroWaypointBridge.java`
+- Create: `src/main/java/dev/xpple/seedmapper/waypoint/XaeroWaypointFileExport.java`
+- Modify: `src/main/java/dev/xpple/seedmapper/seedmap/SeedMapScreen.java`
+- Test: `src/test/java/dev/xpple/seedmapper/waypoint/XaeroWaypointBridgeTest.java`
+- Test: `src/test/java/dev/xpple/seedmapper/waypoint/XaeroWaypointFileExportTest.java`
+
+**Interfaces:**
+- `boolean XaeroWaypointBridge.isAvailable()` checks Fabric mod presence plus reflective runtime availability without a hard Xaero dependency.
+- `record XaeroWaypointSpec(String stableId, String name, BlockPos pos, int color)` is the shared live/file-export payload.
+- `XaeroWaypointBridge.Result addLive(String stableId, String name, BlockPos pos, int color)` mirrors a SeedMapper marker into Xaero's active runtime immediately.
+- `XaeroWaypointBridge.Result addAllLive(Collection<XaeroWaypointSpec> specs)` is used after export so Xaero does not require a restart/file reload.
+- Bridge origin identifier is `seedmapper:waypoints`.
+- Runtime target for the currently installed Xaero 26.6 line is the public session/third-party waypoint path discovered in MegaCraft8: `XaeroMinimapSession.getCurrentSession()` -> `BuiltInHudModules.MINIMAP` -> `MinimapSession` -> Xaero third-party waypoint collection. All use is reflection-isolated.
+- `XaeroWaypointFileExport.export(Path gameDir, String worldIdentifier, ResourceKey<Level> dimension, Collection<XaeroWaypointSpec> specs)` keeps durable `mw$default_1.txt` export behavior with backup and deduplication.
+
+**Observed baseline:** the current code already writes syntactically valid entries into `xaero/minimap/<world>/dim%*/mw$default_1.txt` in MegaCraft8, but Xaero does not live-reload those external file edits. Phase A must therefore keep durable export and also mirror added/exported markers into Xaero's active runtime.
+
+- [ ] **Step 1: Write bridge/file-export regression tests**
+
+Assert:
+- Xaero absent => `isAvailable=false`, live add returns unavailable without exception.
+- reflection backend failure => error result, native SeedMapper remains usable.
+- file export preserves existing `sets:`/waypoint lines, deduplicates coordinates, creates backup, and escapes colon in names.
+- Overworld/Nether/End resolve to `dim%0`, `dim%-1`, `dim%1`.
+
+- [ ] **Step 2: Run tests to verify RED**
+
+Run: `./gradlew.bat test --tests "dev.xpple.seedmapper.waypoint.XaeroWaypointBridgeTest" --tests "dev.xpple.seedmapper.waypoint.XaeroWaypointFileExportTest"`
+Expected: FAIL because bridge/export classes do not exist.
+
+- [ ] **Step 3: Extract current file writer from `SeedMapScreen`**
+
+Move folder resolution, line encoding, set preservation, backup and deduplication into `XaeroWaypointFileExport`; preserve compatibility with the real MegaCraft8 layout under `xaero/minimap`.
+
+- [ ] **Step 4: Implement optional live bridge**
+
+Use reflection only. Construct Xaero `Waypoint` instances and register/update them under the SeedMapper third-party origin/stable id in the active session. Cache reflective handles only after successful resolution; clear/re-resolve after session/world change. Never throw Xaero reflection failures into map rendering/UI.
+
+- [ ] **Step 5: Wire both user paths**
+
+`Add Xaero Waypoint` performs durable/native source action as applicable plus immediate `addLive`. `Export Xaero` writes the durable waypoint file and mirrors all newly exported entries through `addAllLive`, then reports counts for persisted/live-added/skipped items.
+
+- [ ] **Step 6: Run tests and real Xaero runtime smoke**
+
+In MegaCraft8 (Xaero Minimap 26.6.0 + World Map 1.47.0), add one waypoint and export visible structures. Both must appear in Xaero during the same session without Minecraft restart. Restart once and verify durable exported markers remain.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/main/java/dev/xpple/seedmapper/waypoint/XaeroWaypointBridge.java src/main/java/dev/xpple/seedmapper/waypoint/XaeroWaypointFileExport.java src/main/java/dev/xpple/seedmapper/seedmap/SeedMapScreen.java src/test/java/dev/xpple/seedmapper/waypoint/XaeroWaypointBridgeTest.java src/test/java/dev/xpple/seedmapper/waypoint/XaeroWaypointFileExportTest.java
+git commit -m "fix: integrate seed map waypoints with xaero runtime"
+```
+
+### Task 9: Full verification and MegaCraft8 runtime smoke test
 
 **Files:**
 - Modify only if verification finds defects in Phase A files above.
@@ -436,6 +496,7 @@ In MegaCraft8 verify:
 - tooltip always shows X/Z;
 - every Options category opens and all old actions remain reachable;
 - Loot Viewer and existing SimpleWaypoints fixes still work;
+- Add Xaero Waypoint and Export Xaero appear live in Xaero without restart and survive restart via durable export;
 - no new `ERROR`, Mixin, `NullPointerException`, or render crash appears in `latest.log`.
 
 - [ ] **Step 6: Commit any verification-only fixes, then push**
