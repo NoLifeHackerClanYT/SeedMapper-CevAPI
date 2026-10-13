@@ -78,7 +78,7 @@ public class FeatureToggleWidget extends Button {
 
     private static void centerOnWorldSpawnIfOpen() {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.screen instanceof SeedMapScreen screen) {
+        if (minecraft.gui.screen() instanceof SeedMapScreen screen) {
             screen.centerOnWorldSpawn();
         }
     }

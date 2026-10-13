@@ -154,7 +154,7 @@ public final class SeedMapperKeybinds {
             SeedMapMinimapManager.refreshIfOpen();
         }
 
-        if (openOptionsAfterMapOpens && minecraft.screen instanceof SeedMapScreen) {
+        if (openOptionsAfterMapOpens && minecraft.gui.screen() instanceof SeedMapScreen) {
             openOptionsAfterMapOpens = false;
             SeedMapScreen.toggleOptionsFromKeybind(minecraft);
         }

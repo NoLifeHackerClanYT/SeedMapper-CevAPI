@@ -223,6 +223,7 @@ public class DatapackImportCommand {
             minecraft.player.position(),
             minecraft.player.getRotationVector(),
             minecraft.level,
+            false,
             PermissionSet.NO_PERMISSIONS,
             new java.util.HashMap<>()
         );

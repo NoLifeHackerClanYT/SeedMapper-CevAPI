@@ -8,6 +8,7 @@ import dev.xpple.seedmapper.command.arguments.DimensionArgument;
 import dev.xpple.seedmapper.command.arguments.SeedResolutionArgument;
 import dev.xpple.seedmapper.command.arguments.VersionArgument;
 import dev.xpple.seedmapper.config.Configs;
+import dev.xpple.seedmapper.mixin.simplewaypoints.SerializationHelperInvoker;
 import dev.xpple.seedmapper.util.SeedDatabaseHelper;
 import dev.xpple.seedmapper.util.SeedIdentifier;
 import dev.xpple.seedmapper.world.WorldPresetManager;
@@ -40,9 +41,10 @@ public class CustomClientCommandSource extends ClientSuggestionProvider implemen
     private final Vec3 position;
     private final Vec2 rotation;
     private final ClientLevel level;
+    private final boolean attended;
     private final Map<String, Object> meta;
 
-    public CustomClientCommandSource(ClientPacketListener listener, Minecraft minecraft, Entity entity, Vec3 position, Vec2 rotation, ClientLevel level, PermissionSet permissionSet, Map<String, Object> meta) {
+    public CustomClientCommandSource(ClientPacketListener listener, Minecraft minecraft, Entity entity, Vec3 position, Vec2 rotation, ClientLevel level, boolean attended, PermissionSet permissionSet, Map<String, Object> meta) {
         super(listener, minecraft, permissionSet);
 
         this.client = minecraft;
@@ -50,6 +52,7 @@ public class CustomClientCommandSource extends ClientSuggestionProvider implemen
         this.position = position;
         this.rotation = rotation;
         this.level = level;
+        this.attended = attended;
         this.meta = meta;
     }
 
@@ -57,12 +60,12 @@ public class CustomClientCommandSource extends ClientSuggestionProvider implemen
         if (source instanceof CustomClientCommandSource custom) {
             return custom;
         }
-        return new CustomClientCommandSource(source.getClient().getConnection(), source.getClient(), source.getEntity(), source.getPosition(), source.getRotation(), source.getLevel(), source.permissions(), new HashMap<>());
+        return new CustomClientCommandSource(source.getClient().getConnection(), source.getClient(), source.getEntity(), source.getPosition(), source.getRotation(), source.getLevel(), source.attended(), source.permissions(), new HashMap<>());
     }
 
     @Override
     public void sendFeedback(Component message) {
-        this.client.gui.getChat().addClientSystemMessage(message);
+        this.client.gui.hud.getChat().addClientSystemMessage(message);
         this.client.getNarrator().saySystemChatQueued(message);
     }
 
@@ -102,24 +105,29 @@ public class CustomClientCommandSource extends ClientSuggestionProvider implemen
     }
 
     @Override
+    public boolean attended() {
+        return this.attended;
+    }
+
+    @Override
     public @Nullable Object getMeta(String key) {
         return this.meta.get(key);
     }
 
     public CustomClientCommandSource withEntity(Entity entity) {
-        return new CustomClientCommandSource(this.client.getConnection(), this.client, entity, this.position, this.rotation, this.level, this.permissions(), this.meta);
+        return new CustomClientCommandSource(this.client.getConnection(), this.client, entity, this.position, this.rotation, this.level, this.attended, this.permissions(), this.meta);
     }
 
     public CustomClientCommandSource withPosition(Vec3 position) {
-        return new CustomClientCommandSource(this.client.getConnection(), this.client, this.entity, position, this.rotation, this.level, this.permissions(), this.meta);
+        return new CustomClientCommandSource(this.client.getConnection(), this.client, this.entity, position, this.rotation, this.level, this.attended, this.permissions(), this.meta);
     }
 
     public CustomClientCommandSource withRotation(Vec2 rotation) {
-        return new CustomClientCommandSource(this.client.getConnection(), this.client, this.entity, this.position, rotation, this.level, this.permissions(), this.meta);
+        return new CustomClientCommandSource(this.client.getConnection(), this.client, this.entity, this.position, rotation, this.level, this.attended, this.permissions(), this.meta);
     }
 
     public CustomClientCommandSource withLevel(ClientLevel level) {
-        return new CustomClientCommandSource(this.client.getConnection(), this.client, this.entity, this.position, this.rotation, level, this.permissions(), this.meta);
+        return new CustomClientCommandSource(this.client.getConnection(), this.client, this.entity, this.position, this.rotation, level, this.attended, this.permissions(), this.meta);
     }
 
     public CustomClientCommandSource withMeta(String key, Object value) {
@@ -135,7 +143,21 @@ public class CustomClientCommandSource extends ClientSuggestionProvider implemen
                 case SEED_CONFIG -> Configs.Seed;
                 case SAVED_SEEDS_CONFIG -> {
                     String key = SimpleWaypointsAPI.getInstance().getWorldIdentifier(this.client);
-                    yield Configs.SavedSeeds.get(key);
+                    SeedIdentifier saved = null;
+                    if (key != null) {
+                        String upgradedKey = SerializationHelperInvoker.invokeUpgradeWorldIdentifier(key);
+                        saved = Configs.SavedSeeds.get(upgradedKey);
+                        if (saved == null && !upgradedKey.equals(key)) {
+                            saved = Configs.SavedSeeds.get(key);
+                        }
+                    }
+                    if (saved == null) {
+                        String serverKey = Configs.getCurrentServerKey();
+                        if (serverKey != null) {
+                            saved = Configs.SavedSeeds.get(serverKey);
+                        }
+                    }
+                    yield saved;
                 }
                 case ONLINE_DATABASE -> {
                     // match SeedCrackerX's key format

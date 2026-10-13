@@ -112,7 +112,6 @@ import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
-import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.levelgen.PositionalRandomFactory;
 import net.minecraft.world.level.levelgen.WorldgenRandom;
 import net.minecraft.world.level.levelgen.structure.placement.ConcentricRingsStructurePlacement;
@@ -207,7 +206,7 @@ public class SeedMapScreen extends Screen {
     }
 
     public static final int BIOME_SCALE = 4;
-    public static final int SCALED_CHUNK_SIZE = LevelChunkSection.SECTION_WIDTH / BIOME_SCALE;
+    public static final int SCALED_CHUNK_SIZE = SectionPos.SECTION_SIZE / BIOME_SCALE;
 
     private static final int HORIZONTAL_PADDING = 50;
     private static final int VERTICAL_PADDING = 50;
@@ -295,12 +294,12 @@ public class SeedMapScreen extends Screen {
     public static void reopenIfOpen(int generatorFlags) {
         Minecraft minecraft = Minecraft.getInstance();
         minecraft.execute(() -> {
-            if (!(minecraft.screen instanceof SeedMapScreen current)) {
+            if (!(minecraft.gui.screen() instanceof SeedMapScreen current)) {
                 return;
             }
             try {
                 SeedMapScreen replacement = new SeedMapScreen(current.seed, current.dimension, current.version, generatorFlags, current.playerPos, current.playerRotation);
-                minecraft.setScreen(replacement);
+                minecraft.gui.setScreen(replacement);
                 replacement.moveCenter(current.centerQuart);
             } catch (Throwable ignored) {
             }
@@ -308,38 +307,38 @@ public class SeedMapScreen extends Screen {
     }
 
     public static boolean toggleOptionsFromKeybind(Minecraft minecraft) {
-        SeedMapScreen owner = findOwningSeedMapScreen(minecraft.screen);
+        SeedMapScreen owner = findOwningSeedMapScreen(minecraft.gui.screen());
         if (owner == null) {
             return false;
         }
         minecraft.execute(() -> {
-            Screen current = minecraft.screen;
+            Screen current = minecraft.gui.screen();
             if (current instanceof SeedMapScreen) {
-                minecraft.setScreen(owner.new OptionsScreen());
+                minecraft.gui.setScreen(owner.new OptionsScreen());
                 return;
             }
             if (current instanceof OptionsScreen) {
-                minecraft.setScreen(owner);
+                minecraft.gui.setScreen(owner);
                 return;
             }
             if (findOwningSeedMapScreen(current) == owner) {
-                minecraft.setScreen(owner.new OptionsScreen());
+                minecraft.gui.setScreen(owner.new OptionsScreen());
             }
         });
         return true;
     }
 
     public static boolean openLootViewerFromKeybind(Minecraft minecraft) {
-        SeedMapScreen owner = findOwningSeedMapScreen(minecraft.screen);
+        SeedMapScreen owner = findOwningSeedMapScreen(minecraft.gui.screen());
         if (owner == null) {
             return false;
         }
-        minecraft.execute(() -> owner.openLootTableScreen(minecraft.screen));
+        minecraft.execute(() -> owner.openLootTableScreen(minecraft.gui.screen()));
         return true;
     }
 
     public static boolean toggleSelectedEspFromKeybind(Minecraft minecraft) {
-        SeedMapScreen owner = findOwningSeedMapScreen(minecraft.screen);
+        SeedMapScreen owner = findOwningSeedMapScreen(minecraft.gui.screen());
         if (owner == null) {
             return false;
         }
@@ -368,7 +367,7 @@ public class SeedMapScreen extends Screen {
     }
 
     private static boolean runNamedEspKeybind(Minecraft minecraft, OptionsEspProfile profile) {
-        SeedMapScreen owner = findOwningSeedMapScreen(minecraft.screen);
+        SeedMapScreen owner = findOwningSeedMapScreen(minecraft.gui.screen());
         if (owner == null) {
             return false;
         }
@@ -1025,7 +1024,7 @@ public class SeedMapScreen extends Screen {
                 int minBlockX = SectionPos.sectionToBlockCoord(chunkPos.x() + relChunkZ);
                 int minBlockZ = SectionPos.sectionToBlockCoord(chunkPos.z() + relChunkZ);
                 RandomSource rnd = this.oreVeinRandom.at(minBlockX, 0, minBlockZ);
-                BlockPos pos = new BlockPos(minBlockX + rnd.nextInt(LevelChunkSection.SECTION_WIDTH), 0, minBlockZ + rnd.nextInt(LevelChunkSection.SECTION_WIDTH));
+                BlockPos pos = new BlockPos(minBlockX + rnd.nextInt(SectionPos.SECTION_SIZE), 0, minBlockZ + rnd.nextInt(SectionPos.SECTION_SIZE));
                 IntSet blocks = IntStream.rangeClosed(0, (50 - -60) / 4)
                     .map(y -> 4 * y + -60)
                     .map(y -> Cubiomes.getOreVeinBlockAt(pos.getX(), y, pos.getZ(), this.oreVeinParameters))
@@ -1133,7 +1132,7 @@ public class SeedMapScreen extends Screen {
 
     private void openOptionsScreen() {
         if (this.minecraft != null) {
-            this.minecraft.setScreen(new OptionsScreen());
+            this.minecraft.gui.setScreen(new OptionsScreen());
         }
     }
 
@@ -1474,7 +1473,7 @@ public class SeedMapScreen extends Screen {
         }
         Configs.Seed = new SeedIdentifier(newSeed, this.version, this.generatorFlags);
         Configs.save();
-        this.minecraft.setScreen(new SeedMapScreen(newSeed, this.dimension, this.version, this.generatorFlags, this.playerPos, this.playerRotation));
+        this.minecraft.gui.setScreen(new SeedMapScreen(newSeed, this.dimension, this.version, this.generatorFlags, this.playerPos, this.playerRotation));
     }
 
     private void runBlockEspHighlight() {
@@ -1878,7 +1877,7 @@ public class SeedMapScreen extends Screen {
             base = "Locate";
         }
         String name = base;
-        Map<String, Waypoint> existing = api.getWorldWaypoints(identifier);
+        Map<String, Waypoint> existing = WaypointMaps.orEmpty(api.getWorldWaypoints(identifier));
         int index = 2;
         while (existing.containsKey(name)) {
             name = base + "_" + index++;
@@ -2057,7 +2056,7 @@ public class SeedMapScreen extends Screen {
         this.wurstWaypointDisplayNames.clear();
         this.lastWurstImportError = null;
 
-        Map<String, Waypoint> existing = waypointsApi.getWorldWaypoints(identifier);
+        Map<String, Waypoint> existing = WaypointMaps.orEmpty(waypointsApi.getWorldWaypoints(identifier));
         Set<String> reservedNames = new HashSet<>(existing.keySet());
         Set<String> occupiedCoords = new HashSet<>();
         Map<String, String> coordToName = new Object2ObjectOpenHashMap<>();
@@ -3155,7 +3154,7 @@ public class SeedMapScreen extends Screen {
             String identifier = api.getWorldIdentifier(this.minecraft);
             String foundName = null;
             if (identifier != null) {
-                Map<String, Waypoint> wps = api.getWorldWaypoints(identifier);
+                Map<String, Waypoint> wps = WaypointMaps.orEmpty(api.getWorldWaypoints(identifier));
                 for (Map.Entry<String, Waypoint> entry : wps.entrySet()) {
                     Waypoint waypoint = entry.getValue();
                     if (waypoint.location().equals(widget.featureLocation) && waypoint.dimension().equals(DIM_ID_TO_MC.get(this.dimension))) {
@@ -3287,7 +3286,7 @@ public class SeedMapScreen extends Screen {
                     if (!typed.isEmpty()) {
                         name = typed.replace(':', '_').replace(' ', '_');
                     } else {
-                        Map<String, Waypoint> wps = api.getWorldWaypoints(identifier);
+                        Map<String, Waypoint> wps = WaypointMaps.orEmpty(api.getWorldWaypoints(identifier));
                         int next = 1;
                         for (String existing : wps.keySet()) {
                             if (existing.startsWith("Waypoint_")) {
@@ -3676,7 +3675,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
                 }
             }
             try {
-                Object chatGui = this.minecraft.gui.getChat();
+                Object chatGui = this.minecraft.gui.hud.getChat();
                 if (chatGui != null) {
                     for (java.lang.reflect.Method method : chatGui.getClass().getMethods()) {
                         Class<?>[] params = method.getParameterTypes();
@@ -4011,8 +4010,8 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
             }
             Component error = this.committer.commit(this.editBox.getValue());
             if (error == null) {
-                if (this.minecraft.screen == this) {
-                    this.minecraft.setScreen(this.previous);
+                if (this.minecraft.gui.screen() == this) {
+                    this.minecraft.gui.setScreen(this.previous);
                 }
             } else {
                 this.errorMessage = error;
@@ -4030,7 +4029,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
 
         @Override
         public void onClose() {
-            this.minecraft.setScreen(this.previous instanceof OptionsScreen ? new OptionsScreen() : this.previous);
+            this.minecraft.gui.setScreen(this.previous instanceof OptionsScreen ? new OptionsScreen() : this.previous);
         }
 
         @Override
@@ -4072,7 +4071,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
             int bottomY = this.height / 2 + 92;
             this.addRenderableWidget(Button.builder(Component.literal("Save"), button -> {
                 this.onSave.accept(hsvToHex(this.hue, this.saturation, this.value));
-                this.minecraft.setScreen(this.previous);
+                this.minecraft.gui.setScreen(this.previous);
             }).bounds(centerX - 105, bottomY, 100, 20).build());
             this.addRenderableWidget(Button.builder(Component.literal("Cancel"), button -> this.onClose())
                 .bounds(centerX + 5, bottomY, 100, 20)
@@ -4137,7 +4136,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
 
         @Override
         public void onClose() {
-            this.minecraft.setScreen(this.previous instanceof OptionsScreen ? new OptionsScreen() : this.previous);
+            this.minecraft.gui.setScreen(this.previous instanceof OptionsScreen ? new OptionsScreen() : this.previous);
         }
 
         @Override
@@ -4281,7 +4280,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
 
         @Override
         public void onClose() {
-            this.minecraft.setScreen(this.previous instanceof OptionsScreen ? new OptionsScreen() : this.previous);
+            this.minecraft.gui.setScreen(this.previous instanceof OptionsScreen ? new OptionsScreen() : this.previous);
         }
 
         private int listX() { return this.width / 2 - 150; }
@@ -4549,7 +4548,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
 
         @Override
         public void onClose() {
-            this.minecraft.setScreen(this.previous instanceof OptionsScreen ? new OptionsScreen() : this.previous);
+            this.minecraft.gui.setScreen(this.previous instanceof OptionsScreen ? new OptionsScreen() : this.previous);
         }
 
         private void filterOptions(String query) {
@@ -4852,7 +4851,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
             }
             Component error = this.committer.commit(this.firstEditBox.getValue(), this.secondEditBox.getValue());
             if (error == null) {
-                this.minecraft.setScreen(this.previous);
+                this.minecraft.gui.setScreen(this.previous);
             } else {
                 this.errorMessage = error;
             }
@@ -4869,7 +4868,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
 
         @Override
         public void onClose() {
-            this.minecraft.setScreen(this.previous instanceof OptionsScreen ? new OptionsScreen() : this.previous);
+            this.minecraft.gui.setScreen(this.previous instanceof OptionsScreen ? new OptionsScreen() : this.previous);
         }
 
         @Override
@@ -4960,7 +4959,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
 
         @Override
         public void onClose() {
-            this.minecraft.setScreen(this.previous instanceof OptionsScreen ? new OptionsScreen() : this.previous);
+            this.minecraft.gui.setScreen(this.previous instanceof OptionsScreen ? new OptionsScreen() : this.previous);
         }
 
         protected void renderList(GuiGraphicsExtractor context, int mouseX, int mouseY) {
@@ -5020,7 +5019,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
         private void openEditor(@Nullable Map.Entry<String, SeedIdentifier> existing) {
             String key = existing == null ? Objects.toString(Configs.getCurrentServerKey(), "") : existing.getKey();
             String seedValue = existing == null ? Long.toString(SeedMapScreen.this.seed) : Long.toString(existing.getValue().seed());
-            this.minecraft.setScreen(new TwoFieldPromptScreen(this, Component.literal(existing == null ? "Add Saved Seed" : "Edit Saved Seed"),
+            this.minecraft.gui.setScreen(new TwoFieldPromptScreen(this, Component.literal(existing == null ? "Add Saved Seed" : "Edit Saved Seed"),
                 Component.literal("Server Key"), Component.literal("Seed"), key, seedValue, "server address", "numeric seed", 256, TEXT_PROMPT_MAX_LENGTH,
                 (nextKey, nextSeed) -> {
                     String normalizedKey = nextKey.trim();
@@ -5104,7 +5103,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
         }
 
         private void openEditor(@Nullable Map.Entry<String, String> existing) {
-            this.minecraft.setScreen(new TwoFieldPromptScreen(this, this.title, Component.literal("Key"), this.entryTitle,
+            this.minecraft.gui.setScreen(new TwoFieldPromptScreen(this, this.title, Component.literal("Key"), this.entryTitle,
                 existing == null ? Objects.toString(Configs.getCurrentServerKey(), "") : existing.getKey(),
                 existing == null ? "" : existing.getValue(), "server key", this.valueHint, 256, 512,
                 (nextKey, nextValue) -> {
@@ -5321,7 +5320,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
             y += rowHeight + gap;
 
             this.randomColorsButton = this.addRenderableWidget(Button.builder(this.randomColorsLabel(), button ->
-                this.minecraft.setScreen(new TextPromptScreen(this, Component.literal("Random Colors"), formatColorList(Configs.DatapackRandomColors), "#RRGGBB, #RRGGBB", 1024, value -> {
+                this.minecraft.gui.setScreen(new TextPromptScreen(this, Component.literal("Random Colors"), formatColorList(Configs.DatapackRandomColors), "#RRGGBB, #RRGGBB", 1024, value -> {
                     try {
                         Configs.DatapackRandomColors = parseColorList(value);
                         Configs.DatapackColorScheme = DatapackStructureManager.COLOR_SCHEME_RANDOM;
@@ -5340,16 +5339,16 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
             y += rowHeight + gap;
 
             this.addRenderableWidget(Button.builder(Component.literal("Saved URLs"), button ->
-                this.minecraft.setScreen(new StringMapEditorScreen(this, Component.literal("Saved URLs"), Component.literal("URL"), Configs.DatapackSavedUrls, "https://...", () ->
+                this.minecraft.gui.setScreen(new StringMapEditorScreen(this, Component.literal("Saved URLs"), Component.literal("URL"), Configs.DatapackSavedUrls, "https://...", () ->
                     SeedMapScreen.this.datapackImportUrl = Objects.toString(Configs.getSavedDatapackUrlForCurrentServer(), ""))))
                 .bounds(left, y, halfWidth, rowHeight).build());
             this.addRenderableWidget(Button.builder(Component.literal("Saved Cache Paths"), button ->
-                this.minecraft.setScreen(new StringMapEditorScreen(this, Component.literal("Saved Cache Paths"), Component.literal("Path"), Configs.DatapackSavedCachePaths, "C:\\\\path\\\\to\\\\cache", () -> {})))
+                this.minecraft.gui.setScreen(new StringMapEditorScreen(this, Component.literal("Saved Cache Paths"), Component.literal("Path"), Configs.DatapackSavedCachePaths, "C:\\\\path\\\\to\\\\cache", () -> {})))
                 .bounds(left + halfWidth + gap, y, halfWidth, rowHeight).build());
             y += rowHeight + gap;
 
             this.structureDisabledButton = this.addRenderableWidget(Button.builder(this.structureDisabledLabel(), button ->
-                this.minecraft.setScreen(new DatapackStructureVisibilityScreen(this)))
+                this.minecraft.gui.setScreen(new DatapackStructureVisibilityScreen(this)))
                 .bounds(left, y, panelWidth, rowHeight).build());
             y += rowHeight + 16;
 
@@ -5365,7 +5364,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
 
         @Override
         public void onClose() {
-            this.minecraft.setScreen(this.previous instanceof OptionsScreen ? new OptionsScreen() : this.previous);
+            this.minecraft.gui.setScreen(this.previous instanceof OptionsScreen ? new OptionsScreen() : this.previous);
         }
 
         @Override
@@ -5417,7 +5416,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
             y += rowHeight + gap;
 
             this.timeoutButton = this.addRenderableWidget(Button.builder(this.timeoutLabel(), button ->
-                this.minecraft.setScreen(new TextPromptScreen(this, Component.literal("ESP Timeout"), formatMinutes(Configs.EspTimeoutMinutes), "minutes", 16, value -> {
+                this.minecraft.gui.setScreen(new TextPromptScreen(this, Component.literal("ESP Timeout"), formatMinutes(Configs.EspTimeoutMinutes), "minutes", 16, value -> {
                     try {
                         double minutes = Double.parseDouble(value.trim());
                         if (Double.isNaN(minutes) || Double.isInfinite(minutes) || minutes < 0.0D) {
@@ -5444,7 +5443,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
             y += rowHeight + gap;
 
             this.outlineColorButton = this.addRenderableWidget(Button.builder(this.outlineColorLabel(), button ->
-                this.minecraft.setScreen(new TextPromptScreen(this, Component.literal("Outline Color"), SeedMapScreen.this.selectedEspStyle().OutlineColor, "#RRGGBB", 9, value -> {
+                this.minecraft.gui.setScreen(new TextPromptScreen(this, Component.literal("Outline Color"), SeedMapScreen.this.selectedEspStyle().OutlineColor, "#RRGGBB", 9, value -> {
                     try {
                         String normalized = normalizeColorValue(value);
                         SeedMapScreen.this.updateSelectedEspStyle(style -> {
@@ -5457,14 +5456,14 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
                     }
                 }))).bounds(left, y, halfWidth - 28, rowHeight).build());
             this.addRenderableWidget(Button.builder(Component.literal("..."), button ->
-                this.minecraft.setScreen(new HsvColorPickerScreen(this, Component.literal("Outline Color"), SeedMapScreen.this.selectedEspStyle().OutlineColor, next ->
+                this.minecraft.gui.setScreen(new HsvColorPickerScreen(this, Component.literal("Outline Color"), SeedMapScreen.this.selectedEspStyle().OutlineColor, next ->
                     SeedMapScreen.this.updateSelectedEspStyle(style -> {
                         style.OutlineColor = next;
                         style.UseCommandColor = false;
                     }))))
                 .bounds(left + halfWidth - 24, y, 24, rowHeight).build());
             this.fillColorButton = this.addRenderableWidget(Button.builder(this.fillColorLabel(), button ->
-                this.minecraft.setScreen(new TextPromptScreen(this, Component.literal("Fill Color"), SeedMapScreen.this.selectedEspStyle().FillColor, "#RRGGBB", 9, value -> {
+                this.minecraft.gui.setScreen(new TextPromptScreen(this, Component.literal("Fill Color"), SeedMapScreen.this.selectedEspStyle().FillColor, "#RRGGBB", 9, value -> {
                     try {
                         String normalized = normalizeColorValue(value);
                         SeedMapScreen.this.updateSelectedEspStyle(style -> style.FillColor = normalized);
@@ -5474,7 +5473,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
                     }
                 }))).bounds(left + halfWidth + gap, y, halfWidth - 28, rowHeight).build());
             this.addRenderableWidget(Button.builder(Component.literal("..."), button ->
-                this.minecraft.setScreen(new HsvColorPickerScreen(this, Component.literal("Fill Color"), SeedMapScreen.this.selectedEspStyle().FillColor, next ->
+                this.minecraft.gui.setScreen(new HsvColorPickerScreen(this, Component.literal("Fill Color"), SeedMapScreen.this.selectedEspStyle().FillColor, next ->
                     SeedMapScreen.this.updateSelectedEspStyle(style -> style.FillColor = next))))
                 .bounds(left + panelWidth - 24, y, 24, rowHeight).build());
             y += rowHeight + gap;
@@ -5513,7 +5512,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
 
         @Override
         public void onClose() {
-            this.minecraft.setScreen(this.previous);
+            this.minecraft.gui.setScreen(this.previous);
         }
 
         @Override
@@ -5620,7 +5619,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
 
         @Override
         public void onClose() {
-            this.minecraft.setScreen(this.previous instanceof OptionsScreen ? new OptionsScreen() : this.previous);
+            this.minecraft.gui.setScreen(this.previous instanceof OptionsScreen ? new OptionsScreen() : this.previous);
         }
 
         @Override
@@ -5773,7 +5772,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
         @Override
         public void onClose() {
             this.editingKeybind = null;
-            this.minecraft.setScreen(this.previous instanceof OptionsScreen ? new OptionsScreen() : this.previous);
+            this.minecraft.gui.setScreen(this.previous instanceof OptionsScreen ? new OptionsScreen() : this.previous);
         }
 
         @Override
@@ -5839,7 +5838,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
             int y = top;
 
             this.addRenderableWidget(Button.builder(this.seedLabel(), button ->
-                this.minecraft.setScreen(new TextPromptScreen(this, Component.literal("Seed Input"), Long.toString(SeedMapScreen.this.seed), "Enter a numeric seed", TEXT_PROMPT_MAX_LENGTH, value -> {
+                this.minecraft.gui.setScreen(new TextPromptScreen(this, Component.literal("Seed Input"), Long.toString(SeedMapScreen.this.seed), "Enter a numeric seed", TEXT_PROMPT_MAX_LENGTH, value -> {
                     SeedMapScreen.this.applySeedFromOptions(value);
                     return null;
                 })))
@@ -5858,19 +5857,19 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
             y += rowHeight + gap;
 
             this.addRenderableWidget(Button.builder(Component.literal("Locate Structure"), button ->
-                this.minecraft.setScreen(new LocatePickerScreen<>(this, Component.literal("Locate Structure"), SeedMapScreen.this.getLocateStructureOptions(), MapFeature::getName,
+                this.minecraft.gui.setScreen(new LocatePickerScreen<>(this, Component.literal("Locate Structure"), SeedMapScreen.this.getLocateStructureOptions(), MapFeature::getName,
                     (option, locateFrom) -> SeedMapScreen.this.locateStructureResult((MapFeature) option, locateFrom))))
                 .bounds(left, y, halfWidth, rowHeight)
                 .build());
             this.addRenderableWidget(Button.builder(Component.literal("Locate Biome"), button ->
-                this.minecraft.setScreen(new LocatePickerScreen<>(this, Component.literal("Locate Biome"), SeedMapScreen.this.getLocateBiomeOptions(), biome -> biome,
+                this.minecraft.gui.setScreen(new LocatePickerScreen<>(this, Component.literal("Locate Biome"), SeedMapScreen.this.getLocateBiomeOptions(), biome -> biome,
                     (option, locateFrom) -> SeedMapScreen.this.locateBiomeResult((String) option, locateFrom))))
                 .bounds(left + halfWidth + gap, y, halfWidth, rowHeight)
                 .build());
             y += rowHeight + gap;
 
             this.addRenderableWidget(Button.builder(Component.literal("Locate Loot"), button ->
-                this.minecraft.setScreen(new LocateLootScreen(this)))
+                this.minecraft.gui.setScreen(new LocateLootScreen(this)))
                 .bounds(left, y, halfWidth, rowHeight)
                 .build());
             this.addRenderableWidget(Button.builder(Component.literal("Loot Viewer"), button -> SeedMapScreen.this.openLootTableScreen(this))
@@ -5879,7 +5878,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
             y += rowHeight + sectionGap;
 
             this.addRenderableWidget(Button.builder(this.espTargetLabel(), button ->
-                this.minecraft.setScreen(new TextPromptScreen(this, Component.literal("ESP Target"), SeedMapScreen.this.espTarget, "Example: diamond_ore", TEXT_PROMPT_MAX_LENGTH, value -> {
+                this.minecraft.gui.setScreen(new TextPromptScreen(this, Component.literal("ESP Target"), SeedMapScreen.this.espTarget, "Example: diamond_ore", TEXT_PROMPT_MAX_LENGTH, value -> {
                     String normalized = value.trim();
                     if (normalized.isEmpty()) {
                         return Component.literal("ESP target cannot be empty.");
@@ -5917,7 +5916,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
             y += rowHeight + gap;
 
             this.addRenderableWidget(Button.builder(this.espProfileLabel(), button ->
-                this.minecraft.setScreen(new EspSettingsScreen(this)))
+                this.minecraft.gui.setScreen(new EspSettingsScreen(this)))
                 .bounds(left, y, halfWidth, rowHeight)
                 .build());
             this.addRenderableWidget(Button.builder(Component.literal("Clear ESP"), button -> {
@@ -5929,7 +5928,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
             y += sectionGapLarge;
 
             this.addRenderableWidget(Button.builder(this.datapackUrlLabel(), button ->
-                this.minecraft.setScreen(new TextPromptScreen(this, Component.literal("Datapack URL"), SeedMapScreen.this.datapackImportUrl, "https://...", URL_PROMPT_MAX_LENGTH, value -> {
+                this.minecraft.gui.setScreen(new TextPromptScreen(this, Component.literal("Datapack URL"), SeedMapScreen.this.datapackImportUrl, "https://...", URL_PROMPT_MAX_LENGTH, value -> {
                     String trimmed = value.trim();
                     SeedMapScreen.this.datapackImportUrl = trimmed;
                     if (!trimmed.isEmpty()) {
@@ -5952,7 +5951,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
             y += rowHeight + gap;
 
             this.addRenderableWidget(Button.builder(Component.literal("Datapack Settings"), button ->
-                this.minecraft.setScreen(new DatapackSettingsScreen(this)))
+                this.minecraft.gui.setScreen(new DatapackSettingsScreen(this)))
                 .bounds(left, y, panelWidth, rowHeight)
                 .build());
             y += rowHeight + sectionGapLarge;
@@ -5962,17 +5961,17 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
                 button.setMessage(this.minimapToggleLabel());
             }).bounds(left, y, halfWidth, rowHeight).build());
             this.addRenderableWidget(Button.builder(Component.literal("Minimap Settings"), button ->
-                this.minecraft.setScreen(new MinimapSettingsScreen(this)))
+                this.minecraft.gui.setScreen(new MinimapSettingsScreen(this)))
                 .bounds(left + halfWidth + gap, y, halfWidth, rowHeight)
                 .build());
             y += rowHeight + gap;
 
             this.addRenderableWidget(Button.builder(Component.literal("Keybinds"), button ->
-                this.minecraft.setScreen(new KeybindsScreen(this)))
+                this.minecraft.gui.setScreen(new KeybindsScreen(this)))
                 .bounds(left, y, halfWidth, rowHeight)
                 .build());
             this.addRenderableWidget(Button.builder(Component.literal("Saved Seeds"), button ->
-                this.minecraft.setScreen(new SavedSeedsScreen(this)))
+                this.minecraft.gui.setScreen(new SavedSeedsScreen(this)))
                 .bounds(left + halfWidth + gap, y, halfWidth, rowHeight)
                 .build());
             y += rowHeight + sectionGapLarge;
@@ -6040,7 +6039,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
 
         @Override
         public void onClose() {
-            this.minecraft.setScreen(SeedMapScreen.this);
+            this.minecraft.gui.setScreen(SeedMapScreen.this);
         }
 
         @Override
@@ -6522,7 +6521,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
         if (this.toggleableFeatures.contains(MapFeature.WAYPOINT) && Configs.ToggledFeatures.contains(MapFeature.WAYPOINT)) {
             SimpleWaypointsAPI waypointsApi = SimpleWaypointsAPI.getInstance();
             String identifier = waypointsApi.getWorldIdentifier(this.minecraft);
-            Map<String, Waypoint> worldWaypoints = waypointsApi.getWorldWaypoints(identifier);
+            Map<String, Waypoint> worldWaypoints = WaypointMaps.orEmpty(waypointsApi.getWorldWaypoints(identifier));
             worldWaypoints.forEach((name, waypoint) -> {
                 if (!waypoint.dimension().equals(DIM_ID_TO_MC.get(this.dimension))) {
                     return;
@@ -7061,7 +7060,7 @@ private boolean handleWaypointNameFieldEnter(KeyEvent keyEvent) {
             player.sendSystemMessage(Component.literal("No lootable structures in view.") );
             return;
         }
-        this.minecraft.setScreen(new LootTableScreen(previous, this.minecraft, DIM_ID_TO_MC.get(this.dimension), player.blockPosition(), entries));
+        this.minecraft.gui.setScreen(new LootTableScreen(previous, this.minecraft, DIM_ID_TO_MC.get(this.dimension), player.blockPosition(), entries));
     }
 
     private void enqueueTilesSpiral(Object2ObjectMap<TilePos, java.util.List<CustomStructureMarker>> dimensionCache,

@@ -13,7 +13,6 @@ import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.ARGB;
 import net.minecraft.util.Mth;
@@ -174,48 +173,42 @@ public final class RenderManager {
         RenderManager.extractedFills = extractedFills;
     }
 
-    private static void renderLines(LevelRenderContext worldRenderContext) {
-        List<Line> extractedLines = RenderManager.extractedLines;
-        if (extractedLines == null || extractedLines.isEmpty()) {
-            return;
-        }
-        PoseStack matrices = worldRenderContext.poseStack();
-        matrices.pushPose();
-        PoseStack.Pose pose = matrices.last();
-        MultiBufferSource consumers = worldRenderContext.bufferSource();
-        MultiBufferSource.BufferSource bufferSource = consumers instanceof MultiBufferSource.BufferSource bs ? bs : null;
-        VertexConsumer buffer = consumers.getBuffer(NoDepthLayer.LINES_NO_DEPTH_LAYER);
-        int lineVertices = 0;
-        for (Line line : extractedLines) {
-            drawLine(buffer, pose, line);
-            lineVertices += 2;
-            if (bufferSource != null && lineVertices >= MAX_LINE_VERTICES_PER_BATCH) {
-                bufferSource.endBatch(NoDepthLayer.LINES_NO_DEPTH_LAYER);
-                buffer = bufferSource.getBuffer(NoDepthLayer.LINES_NO_DEPTH_LAYER);
-                lineVertices = 0;
+    private static void renderLines(LevelRenderContext context) {
+        List<Line> linesToRender = RenderManager.extractedLines;
+        if (linesToRender != null && !linesToRender.isEmpty()) {
+            int linesPerBatch = Math.max(1, MAX_LINE_VERTICES_PER_BATCH / 2);
+            for (int from = 0; from < linesToRender.size(); from += linesPerBatch) {
+                final int start = from;
+                final int end = Math.min(linesToRender.size(), from + linesPerBatch);
+                context.submitNodeCollector().submitCustomGeometry(
+                    context.poseStack(),
+                    NoDepthLayer.LINES_NO_DEPTH_LAYER,
+                    (pose, buffer) -> {
+                        for (int i = start; i < end; i++) {
+                            drawLine(buffer, pose, linesToRender.get(i));
+                        }
+                    }
+                );
             }
         }
-        if (bufferSource != null) {
-            bufferSource.endBatch(NoDepthLayer.LINES_NO_DEPTH_LAYER);
-        }
-        List<FillFace> extractedFills = RenderManager.extractedFills;
-        if (extractedFills != null && !extractedFills.isEmpty()) {
-            VertexConsumer quadBuffer = consumers.getBuffer(NoDepthLayer.QUADS_NO_DEPTH_LAYER);
-            int quadVertices = 0;
-            for (FillFace face : extractedFills) {
-                drawQuadFill(quadBuffer, pose, face);
-                quadVertices += 8;
-                if (bufferSource != null && quadVertices >= MAX_FILL_VERTICES_PER_BATCH) {
-                    bufferSource.endBatch(NoDepthLayer.QUADS_NO_DEPTH_LAYER);
-                    quadBuffer = bufferSource.getBuffer(NoDepthLayer.QUADS_NO_DEPTH_LAYER);
-                    quadVertices = 0;
-                }
-            }
-            if (bufferSource != null) {
-                bufferSource.endBatch(NoDepthLayer.QUADS_NO_DEPTH_LAYER);
+
+        List<FillFace> fillsToRender = RenderManager.extractedFills;
+        if (fillsToRender != null && !fillsToRender.isEmpty()) {
+            int facesPerBatch = Math.max(1, MAX_FILL_VERTICES_PER_BATCH / 8);
+            for (int from = 0; from < fillsToRender.size(); from += facesPerBatch) {
+                final int start = from;
+                final int end = Math.min(fillsToRender.size(), from + facesPerBatch);
+                context.submitNodeCollector().submitCustomGeometry(
+                    context.poseStack(),
+                    NoDepthLayer.QUADS_NO_DEPTH_LAYER,
+                    (pose, buffer) -> {
+                        for (int i = start; i < end; i++) {
+                            drawQuadFill(buffer, pose, fillsToRender.get(i));
+                        }
+                    }
+                );
             }
         }
-        matrices.popPose();
     }
 
     private static void drawLine(VertexConsumer buffer, PoseStack.Pose pose, Line line) {

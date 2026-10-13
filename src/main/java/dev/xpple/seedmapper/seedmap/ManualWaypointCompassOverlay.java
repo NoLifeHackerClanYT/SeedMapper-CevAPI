@@ -65,7 +65,7 @@ public final class ManualWaypointCompassOverlay {
         }
 
         GameRenderer gameRenderer = minecraft.gameRenderer;
-        Camera camera = gameRenderer.getMainCamera();
+        Camera camera = gameRenderer.mainCamera();
         Entity cameraEntity = camera.entity();
         float partialTicks = deltaTracker.getGameTimeDeltaPartialTick(true);
         double verticalFovRad = Math.toRadians(readFov(gameRenderer, camera, partialTicks));
@@ -91,7 +91,7 @@ public final class ManualWaypointCompassOverlay {
             double distanceSquared = waypoint.location().distToCenterSqr(cameraEntity.position());
             long distance = Math.round(Math.sqrt(distanceSquared));
             Component marker = ComponentUtils.wrapInSquareBrackets(Component.literal(waypointName + ' ' + distance).withStyle(ChatFormatting.YELLOW));
-            Vec3 waypointCenter = waypoint.location().getCenter();
+            Vec3 waypointCenter = Vec3.atCenterOf(waypoint.location());
 
             Vector2d waypointLocation = new Vector2d(waypointCenter.x, waypointCenter.z);
             double angleRad = viewVector.angle(waypointLocation.sub(position, new Vector2d()));
