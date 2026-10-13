@@ -2,7 +2,7 @@
 
 Date: 2026-10-13
 Branch: `mc-26.2-port`
-Status: Design approved in chat; pending written-spec review
+Status: Written spec approved; implementation planning
 
 ## 1. Goal
 
